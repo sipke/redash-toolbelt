@@ -749,7 +749,7 @@ def import_dashboards(orig_client, dest_client):
 
         print("   importing: {}".format(dashboard["slug"]))
 
-        d = orig_client.dashboard(dashboard["slug"])
+        d = orig_client.dashboard(dashboard["id"])
 
         orig_user_id = d["user"]["id"]
 

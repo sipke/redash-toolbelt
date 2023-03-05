@@ -7,7 +7,7 @@ Notes:
 
 import sys, os, json, logging, textwrap, re, traceback
 import click
-from redash_toolbelt import Redash
+from redash_toolbelt import Redash, RedashFileClient
 
 logging.basicConfig(stream=sys.stdout, level=logging.ERROR)
 logging.getLogger("requests").setLevel("ERROR")
@@ -87,10 +87,20 @@ def check_data_sources(orig_client, dest_client):
         print("\n\nCheck complete. OK")
 
 
+def init_file_client(orig_client, dest_client):
+    """Mirror orig_client data in dest_client as we are mirroring the orig_client into file."""
+
+    api = "api/data_sources/types"
+    types = orig_client._get(api).json()
+    dest_client._post(api, json=types)
+    # TODO decide when we write data to file, on each _post would mean no 'changes' to client, but lots of file access
+
+
 def import_data_sources(orig_client, dest_client):
     """Create stub data sources at DESTINATION based on the data sources in ORIGIN."""
 
     orig_data_sources = orig_client.get_data_sources()
+    print('orig_data_sources: ', orig_data_sources)
     allowed_types = {
         i["type"]: i for i in dest_client._get("api/data_sources/types").json()
     }
@@ -1185,21 +1195,21 @@ def init():
     meta["settings"]["origin_url"] = origin_url
     meta["settings"]["origin_admin_api_key"] = origin_admin_api_key
 
-    print("\n\nNext, we'll enter the same information for the new instance")
+    print("\n\nNext, we'll enter the same information for the new instance or file for an intermediate migration")
 
     destination_url = input(
-        "Please enter the destination URL. Example: http://localhost: "
+        "Please enter the destination URL. Example: http://localhost, or /file/name if to file: "
     )
     destination_admin_api_key = input(
-        "Please enter an admin API key for the destination instance: "
+        "Please enter an admin API key for the destination instance, or empty if to file: "
     )
     destination_admin_user_id = int(
         input(
-            "Please enter the integer user id for this admin on the destination instance: "
+            "Please enter the integer user id for this admin on the destination instance, or 0 if to file: "
         )
     )
     destination_admin_email_address = input(
-        "Please enter the email address for the destination admin user (no emails will be sent): "
+        "Please enter the email address for the destination admin user (no emails will be sent), or empty if to file: "
     )
 
     meta["settings"]["destination_url"] = destination_url
@@ -1286,6 +1296,14 @@ def make_global_meta():
     DATA_SOURCES = meta["data_sources"]
 
 
+def instantiate_client(url, api_key):
+    if 'http' in url:
+        instance = Redash(url, api_key)
+    else:
+        instance = RedashFileClient(url)
+    return instance
+
+
 @click.command()
 @click.argument(
     "command",
@@ -1301,6 +1319,11 @@ def main(command):
       init                  Create a meta.json template file in your working directory. You will be
                             prompted to enter authentication information for your origin and desti-
                             nation instances.
+
+      \b
+      file-init             Optional for intermediate migration only, when destination is file.
+                            Initialises the destination file client, as subsequent steps need some
+                            types etc available in destination.
 
       \b
       data-sources          Create stubs of your origin data sources in your destination instance
@@ -1377,10 +1400,12 @@ def main(command):
     if command == "init":
         return init()
 
-    from_client = Redash(ORIGIN, ORIGIN_API_KEY)
-    to_client = Redash(DESTINATION, DESTINATION_API_KEY)
+    # Instantiate either an http or file client dependent on url
+    from_client = instantiate_client(ORIGIN, ORIGIN_API_KEY)
+    to_client = instantiate_client(DESTINATION, DESTINATION_API_KEY)
 
     command_map = {
+        "file-init": init_file_client,
         "data-sources": import_data_sources,
         "check-data-sources": check_data_sources,
         "users": import_users,
@@ -1406,7 +1431,9 @@ def main(command):
     if wrapped is None:
         print("No command provided. See --help for instructions")
 
-    return wrapped(from_client, to_client)
+    wrapped(from_client, to_client)
+    from_client.close()
+    to_client.close()
 
 
 if __name__ == "__main__":

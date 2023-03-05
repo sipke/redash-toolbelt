@@ -1,17 +1,25 @@
 import json
+import os
 
 
 class RedashFileClient(object):
     """
-    A file based client used to store redash information primarily as an intermediat migration step.
+    A file based client used to store redash information primarily as an intermediate migration step.
     """
-    def __init__(self, redash_url, api_key):
+    def __init__(self, redash_url):
         if 'http' in redash_url:
             raise Exception('File based client does not expect http in url')
         self.redash_url = redash_url
         self.data = None
-        with open(redash_url, 'r') as file:
-            self.data = json.load(file)
+        load = os.path.isfile(redash_url)
+        if load:
+            # load existing data if it exists
+            with open(redash_url, 'r') as file:
+                self.data = json.load(file)
+        else:
+            # create new empty json file if possible
+            with open(redash_url, 'w') as file:
+                json.dump(dict(), file)
 
     def test_credentials(self):
         try:
@@ -231,6 +239,10 @@ class RedashFileClient(object):
         else:
             raise Exception("DELETE not supported in file client")
         return response
+
+    def close(self):
+        with open(self.redash_url, 'w') as file:
+            json.dump(self.data, file)
 
 
 class Response(object):

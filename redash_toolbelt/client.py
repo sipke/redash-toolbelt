@@ -213,3 +213,6 @@ class Redash(object):
         response = self.session.request(method, url, **kwargs)
         response.raise_for_status()
         return response
+
+    def close(self):
+        return

@@ -91,9 +91,21 @@ class RedashFileClient(object):
     def create_data_source(self, name, _type, options):
         """POST api/data_sources"""
 
-        payload = {"name": name, "type": _type, "options": options}
+        api = "api/data_sources"
 
-        return self._post("api/data_sources", json=payload)
+        if api in self.data.keys():
+            _id = 1
+            for item in self.data[api]:
+                next_id = int(item['id'])
+                if next_id > _id:
+                    _id = next_id
+        else:
+            _id = 1
+
+        # Prepend next id to data source
+        payload = {"id": _id, "name": name, "type": _type, "options": options}
+
+        return self._post(api, json=payload)
 
     def dashboard(self, slug):
         """GET api/dashboards/{slug}"""
@@ -235,14 +247,23 @@ class RedashFileClient(object):
             data = self.data[path]
             response = Response(data)
         elif method == 'POST':
-            self.data[path] = kwargs.get('json')
+            data = kwargs.get('json')
+            if path[-1] == 's':
+                # All list apis end in s (dangerous assumption), so append
+                if path not in self.data.keys():
+                    self.data[path] = [data]
+                else:
+                    self.data[path].append(data)
+            else:
+                self.data[path] = data
+            response = Response(data)
         else:
             raise Exception("DELETE not supported in file client")
         return response
 
     def close(self):
         with open(self.redash_url, 'w') as file:
-            json.dump(self.data, file)
+            json.dump(self.data, file, indent=4)
 
 
 class Response(object):

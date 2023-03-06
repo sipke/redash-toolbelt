@@ -93,7 +93,22 @@ def init_file_client(orig_client, dest_client):
     api = "api/data_sources/types"
     types = orig_client._get(api).json()
     dest_client._post(api, json=types)
-    # TODO decide when we write data to file, on each _post would mean no 'changes' to client, but lots of file access
+
+    # TODO handle paginated data coming from origin client
+    api = "api/users"
+    user_list = orig_client._get(api).json()
+
+    internal_users = []
+    for user in user_list['results']:
+        all_details = orig_client.get_user(user['id']).json()
+        internal_users.append(all_details)
+
+    dest_client._post(api, json=user_list)
+    dest_client._post(f"internal/{api}", json=internal_users)
+
+    first = orig_client._get('api/users/1')
+
+    print("File migration init complete")
 
 
 def import_data_sources(orig_client, dest_client):
@@ -118,6 +133,7 @@ def import_data_sources(orig_client, dest_client):
             continue
 
         ds_def = orig_client.get_data_source(dsid)
+        print("ds_def origin: ", ds_def)
 
         origin_type = ds_def["type"]
 
@@ -153,6 +169,7 @@ def import_data_sources(orig_client, dest_client):
             "_type": target_type,
             "options": ds_def["options"],
         }
+        print("new_data_source_def:    ", new_data_source_def)
 
         try:
             new_ds = dest_client.create_data_source(**new_data_source_def).json()
@@ -587,7 +604,7 @@ def import_queries(orig_client, dest_client):
 
             print("Query {} - OK  - importing".format(origin_id))
 
-            user_client = Redash(DESTINATION, user_api_key)
+            user_client = instantiate_client(DESTINATION, user_api_key)
 
             try:
                 response = user_client.create_query(data)
@@ -1052,7 +1069,7 @@ def convert_schedule(schedule):
 
 
 def get_api_key(client, user_id):
-    response = client._get(f"api/users/{user_id}")
+    response = client.get_user(user_id)
 
     return response.json()["api_key"]
 
@@ -1205,7 +1222,7 @@ def init():
     )
     destination_admin_user_id = int(
         input(
-            "Please enter the integer user id for this admin on the destination instance, or 0 if to file: "
+            "Please enter the integer user id for this admin on the destination instance, or 1 if to file: "
         )
     )
     destination_admin_email_address = input(
@@ -1300,7 +1317,8 @@ def instantiate_client(url, api_key):
     if 'http' in url:
         instance = Redash(url, api_key)
     else:
-        instance = RedashFileClient(url)
+        # File client needs to be a singleton
+        instance = RedashFileClient.instance(url)
     return instance
 
 

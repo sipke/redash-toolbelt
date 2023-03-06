@@ -10,16 +10,27 @@ class RedashFileClient(object):
         if 'http' in redash_url:
             raise Exception('File based client does not expect http in url')
         self.redash_url = redash_url
-        self.data = None
+        self.data = {}
         load = os.path.isfile(redash_url)
         if load:
             # load existing data if it exists
             with open(redash_url, 'r') as file:
                 self.data = json.load(file)
+                if not self.data:
+                    self.data = {}
         else:
             # create new empty json file if possible
             with open(redash_url, 'w') as file:
                 json.dump(dict(), file)
+
+    @classmethod
+    def instance(cls, url):
+        if url in cls._instances.keys():
+            i = cls._instances[url]
+        else:
+            i = RedashFileClient(url)
+            cls._instances[url] = i
+        return i
 
     def test_credentials(self):
         try:
@@ -105,14 +116,14 @@ class RedashFileClient(object):
         # Prepend next id to data source
         payload = {"id": _id, "name": name, "type": _type, "options": options}
 
-        return self._post(api, json=payload)
+        return self._post(api, json=payload, list_data=True)
 
     def dashboard(self, slug):
         """GET api/dashboards/{slug}"""
         return self._get("api/dashboards/{}".format(slug)).json()
 
     def create_query(self, query_json):
-        return self._post("api/queries", json=query_json)
+        return self._post("api/queries", json=query_json, list_data=True)
 
     def create_dashboard(self, name):
         return self._post("api/dashboards", json={"name": name}).json()
@@ -226,6 +237,14 @@ class RedashFileClient(object):
                 *self.paginate(resource, page=page + 1, page_size=page_size, **kwargs),
             ]
 
+    def get_user(self, id):
+        users = self._get('internal/api/users').json()
+        for item in users:
+            if item['id'] == id:
+                user = item
+                break
+        return Response(user)
+
     def _get(self, path, **kwargs):
         return self._request("GET", path, **kwargs)
 
@@ -240,6 +259,7 @@ class RedashFileClient(object):
         Blindly read or write to internal json data object using the API path as the key, allowing
         for file based mimicking of the data.
         """
+        self._confirm_supported(path)
         response = None
         if method == 'GET':
             params = kwargs.get('params')
@@ -248,10 +268,13 @@ class RedashFileClient(object):
             response = Response(data)
         elif method == 'POST':
             data = kwargs.get('json')
-            if path[-1] == 's':
-                # All list apis end in s (dangerous assumption), so append
+            list_data = kwargs.get('list_data')
+            if list_data:
                 if path not in self.data.keys():
-                    self.data[path] = [data]
+                    if isinstance(data, list):
+                        self.data[path] = data
+                    else:
+                        self.data[path] = [data]
                 else:
                     self.data[path].append(data)
             else:
@@ -261,9 +284,17 @@ class RedashFileClient(object):
             raise Exception("DELETE not supported in file client")
         return response
 
+    def _confirm_supported(self, path):
+        unsupported_list = ['api/groups', 'api/alerts']
+        for item in unsupported_list:
+            if item in path:
+                raise Exception(f"This path {path} is currently unsupported in file migration")
+
     def close(self):
         with open(self.redash_url, 'w') as file:
             json.dump(self.data, file, indent=4)
+
+    _instances = dict()
 
 
 class Response(object):
@@ -276,3 +307,8 @@ class Response(object):
 
     def json(self):
         return self.data
+
+
+class InstanceDefinition(object):
+    url = None
+    instance = None

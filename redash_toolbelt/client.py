@@ -199,6 +199,9 @@ class Redash(object):
                 *self.paginate(resource, page=page + 1, page_size=page_size, **kwargs),
             ]
 
+    def get_user(self, id):
+        return self._get(f"api/users/{id}")
+
     def _get(self, path, **kwargs):
         return self._request("GET", path, **kwargs)
 

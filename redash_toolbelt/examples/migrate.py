@@ -112,6 +112,7 @@ def store_api_to_file(orig_client, dest_client, api, internal=True, id_tag='id')
 
         dest_client._post(f"internal/{api}", json=internal_list)
 
+    return upper_list
 
 def init_file_client(orig_client, dest_client):
     """Mirror orig_client data in dest_client as we are mirroring the orig_client into file."""
@@ -121,7 +122,7 @@ def init_file_client(orig_client, dest_client):
     store_api_to_file(orig_client, dest_client, "api/users")
     store_api_to_file(orig_client, dest_client, "api/data_sources")
     store_api_to_file(orig_client, dest_client, "api/users")
-    store_api_to_file(orig_client, dest_client, "api/groups")
+    groups = store_api_to_file(orig_client, dest_client, "api/groups")
     store_api_to_file(orig_client, dest_client, "api/queries")
     store_api_to_file(orig_client, dest_client, "api/queries/favorites", internal=False)
     #store_api_to_file(orig_client, dest_client, "api/visualization")
@@ -131,6 +132,11 @@ def init_file_client(orig_client, dest_client):
     store_api_to_file(orig_client, dest_client, "api/destinations")
     store_api_to_file(orig_client, dest_client, "api/alerts")
     #store_api_to_file(orig_client, dest_client, "api/favorites")
+
+    for group in groups:
+        _id = group['id']
+        store_api_to_file(orig_client, dest_client, f"api/groups/{_id}/members", internal=False)
+        store_api_to_file(orig_client, dest_client, f"api/groups/{_id}/data_sources", internal=False)
 
     print("File migration init complete")
 

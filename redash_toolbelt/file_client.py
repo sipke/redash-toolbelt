@@ -267,8 +267,34 @@ class RedashFileClient(object):
         self._confirm_supported(path)
         response = None
         if method == 'GET':
+            '''
+            Handle pagination to mimic real client
+             "api/path": {
+                "count": 2,
+                "page": 1,
+                "page_size": 25,
+                "results": [...]                
+            '''
             params = kwargs.get('params')
-            data = self.data[path]
+            if params and params['page_size'] and params['page']:
+                page_size = params['page_size']
+                page = params['page']
+                sub_data = self._sub_data(self.data[path], params)
+                start = (page - 1) * page_size
+                end = start + page_size
+                length = len(sub_data)
+                if end > length:
+                    end = length
+                count = end - start
+                page_data = sub_data[start:end]
+                data = {
+                    "count": count,
+                    "page": page,
+                    "page_size": page_size,
+                    "results": page_data
+                }
+            else:
+                data = self.data[path]
             response = Response(data)
         elif method == 'POST':
             data = kwargs.get('json')
@@ -279,11 +305,24 @@ class RedashFileClient(object):
         return response
 
     def _confirm_supported(self, path):
-        return True
-        unsupported_list = ['api/groups', 'api/alerts']
+        unsupported_list = []
         for item in unsupported_list:
             if item in path:
                 raise Exception(f"This path {path} is currently unsupported in file migration")
+
+    def _sub_data(self, data, params):
+        """
+        Filter the data for filterable parameters
+        api/users can filter on is_disabled with disabled parameter
+        :param data: list of items
+        :param params: parameters affecting filterable list
+        :return: filtered list based on params filter items, or same data if no filterable item found
+        """
+        new_data = data
+        if 'disabled' in params.keys():
+            filtered = filter(lambda d: d['is_disabled'] is params['disabled'], data)
+            new_data = list(filtered)
+        return new_data
 
     def close(self):
         with open(self.redash_url, 'w') as file:

@@ -96,7 +96,6 @@ def store_api_to_file(orig_client, dest_client, api, internal=True, id_tag='id')
     response = orig_client._get(api)
     upper_list = response.json()
 
-    # TODO if api returns results, then we are paginated so should add handling of multiple pages
     results = 'results'
     if isinstance(upper_list, dict) and results in upper_list.keys():
         upper_list = upper_list['results']
@@ -114,10 +113,13 @@ def store_api_to_file(orig_client, dest_client, api, internal=True, id_tag='id')
 
     return upper_list
 
-def init_file_client(orig_client, dest_client):
-    """Mirror orig_client data in dest_client as we are mirroring the orig_client into file."""
 
-    # TODO handle paginated data coming from origin client
+def init_file_client(orig_client, dest_client):
+    """
+    Mirror orig_client data in dest_client as we are mirroring the orig_client into file.
+    TODO: consider pagination for larger data items like users, queries, dashboards
+    """
+
     store_api_to_file(orig_client, dest_client, "api/data_sources/types", internal=False)
     store_api_to_file(orig_client, dest_client, "api/users")
     store_api_to_file(orig_client, dest_client, "api/data_sources")
@@ -125,15 +127,11 @@ def init_file_client(orig_client, dest_client):
     groups = store_api_to_file(orig_client, dest_client, "api/groups")
     store_api_to_file(orig_client, dest_client, "api/queries")
     store_api_to_file(orig_client, dest_client, "api/queries/favorites", internal=False)
-    #store_api_to_file(orig_client, dest_client, "api/visualization")
-    #store_api_to_file(orig_client, dest_client, "api/widgets")
     store_api_to_file(orig_client, dest_client, "api/dashboards")
     store_api_to_file(orig_client, dest_client, "api/dashboards/favorites", internal=False)
     store_api_to_file(orig_client, dest_client, "api/destinations")
     store_api_to_file(orig_client, dest_client, "api/destinations/types", internal=False)
     alerts = store_api_to_file(orig_client, dest_client, "api/alerts")
-    #store_api_to_file(orig_client, dest_client, "api/favorites")
-
 
     for group in groups:
         _id = group['id']
@@ -141,8 +139,8 @@ def init_file_client(orig_client, dest_client):
         store_api_to_file(orig_client, dest_client, f"api/groups/{_id}/data_sources", internal=False)
 
     for alert in alerts:
-        orig_id = alert['id']
-        store_api_to_file(orig_client, dest_client, f"api/alerts/{orig_id}/subscriptions", internal=False)
+        _id = alert['id']
+        store_api_to_file(orig_client, dest_client, f"api/alerts/{_id}/subscriptions", internal=False)
 
     print("File migration init complete")
 

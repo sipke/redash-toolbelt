@@ -87,26 +87,50 @@ def check_data_sources(orig_client, dest_client):
         print("\n\nCheck complete. OK")
 
 
+def store_api_to_file(orig_client, dest_client, api, internal=True, id_tag='id'):
+    """
+    Mirror the upper level api (e.g. api/users) and the internal data (e.g as internal/api/users by
+    reading each user and saving to list
+    """
+
+    response = orig_client._get(api)
+    upper_list = response.json()
+
+    # TODO if api returns results, then we are paginated so should add handling of multiple pages
+    results = 'results'
+    if isinstance(upper_list, dict) and results in upper_list.keys():
+        upper_list = upper_list['results']
+    dest_client._post(api, json=upper_list)
+
+    if internal:
+        internal_list = []
+        for item in upper_list:
+            internal_api = f"{api}/{item[id_tag]}"
+            all_details = orig_client._get(internal_api)
+            all_details = all_details.json()
+            internal_list.append(all_details)
+
+        dest_client._post(f"internal/{api}", json=internal_list)
+
+
 def init_file_client(orig_client, dest_client):
     """Mirror orig_client data in dest_client as we are mirroring the orig_client into file."""
 
-    api = "api/data_sources/types"
-    types = orig_client._get(api).json()
-    dest_client._post(api, json=types)
-
     # TODO handle paginated data coming from origin client
-    api = "api/users"
-    user_list = orig_client._get(api).json()
-
-    internal_users = []
-    for user in user_list['results']:
-        all_details = orig_client.get_user(user['id']).json()
-        internal_users.append(all_details)
-
-    dest_client._post(api, json=user_list)
-    dest_client._post(f"internal/{api}", json=internal_users)
-
-    first = orig_client._get('api/users/1')
+    store_api_to_file(orig_client, dest_client, "api/data_sources/types", internal=False)
+    store_api_to_file(orig_client, dest_client, "api/users")
+    store_api_to_file(orig_client, dest_client, "api/data_sources")
+    store_api_to_file(orig_client, dest_client, "api/users")
+    store_api_to_file(orig_client, dest_client, "api/groups")
+    store_api_to_file(orig_client, dest_client, "api/queries")
+    store_api_to_file(orig_client, dest_client, "api/queries/favorites", internal=False)
+    #store_api_to_file(orig_client, dest_client, "api/visualization")
+    #store_api_to_file(orig_client, dest_client, "api/widgets")
+    store_api_to_file(orig_client, dest_client, "api/dashboards")
+    store_api_to_file(orig_client, dest_client, "api/dashboards/favorites", internal=False)
+    store_api_to_file(orig_client, dest_client, "api/destinations")
+    store_api_to_file(orig_client, dest_client, "api/alerts")
+    #store_api_to_file(orig_client, dest_client, "api/favorites")
 
     print("File migration init complete")
 
@@ -673,7 +697,7 @@ def fix_queries(orig_client, dest_client):
             orig_user_id,
             dest_client,
         )["api_key"]
-        user_client = Redash(dest_client.redash_url, user_api_key)
+        user_client = instantiate_client(dest_client.redash_url, user_api_key)
         user_client.update_query(new_query_id, {"options": options})
 
         meta["flags"]["fixed_queries"].append(new_query_id)
@@ -706,7 +730,7 @@ def import_visualizations(orig_client, dest_client):
 
         try:
             dest_user_api_key = user_with_api_key(orig_user_id, dest_client)["api_key"]
-            user_client = Redash(DESTINATION, dest_user_api_key)
+            user_client = instantiate_client(DESTINATION, dest_user_api_key)
         except UserNotFoundException as e:
             print("Query {} - FAIL - Visualizations skipped: ".format(query_id, e))
             continue
@@ -789,7 +813,7 @@ def import_dashboards(orig_client, dest_client):
             print("Dashboard {} - FAIL - {}".format(d["slug"], e))
             continue
 
-        user_client = Redash(DESTINATION, user_api_key)
+        user_client = instantiate_client(DESTINATION, user_api_key)
 
         new_dashboard = user_client.create_dashboard(d["name"])
 
@@ -899,7 +923,7 @@ def import_alerts(orig_client, dest_client):
                 # This is a user subscription
                 dest_user = meta["users"][sub["user"]["id"]]
                 user_dest_api_key = dest_user["api_key"]
-                dest_user_client = Redash(DESTINATION, user_dest_api_key)
+                dest_user_client = instantiate_client(DESTINATION, user_dest_api_key)
                 dest_user_client._post(
                     f"api/alerts/{dest_id}/subscriptions",
                     json=subscriptions_base_kwargs,
@@ -918,8 +942,8 @@ def import_favorites(orig_client, dest_client):
             print(f"User {user_dest['email']} is disabled. Skipping import.")
             continue
 
-        orig_user_client = Redash(ORIGIN, user_orig_api_key)
-        dest_user_client = Redash(DESTINATION, user_dest_api_key)
+        orig_user_client = instantiate_client(ORIGIN, user_orig_api_key)
+        dest_user_client = instantiate_client(DESTINATION, user_dest_api_key)
 
         favorite_queries = orig_user_client.paginate(
             orig_user_client.queries, only_favorites=True
@@ -997,7 +1021,7 @@ def fix_csv_queries(orig_client, dest_client):
         new_text = f'url: "{old_text}"'
 
         user_api_key = get_api_key(dest_client, query["user"]["id"])
-        user_client = Redash(DESTINATION, user_api_key)
+        user_client = instantiate_client(DESTINATION, user_api_key)
         user_client.update_query(query_id, {"query": new_text})
 
         meta["fix_csv_queries"][query_id] = True

@@ -96,8 +96,13 @@ class RedashFileClient(object):
 
     def get_data_source(self, id):
         """GET api/data_sources/<id>"""
-
-        return self._get("api/data_sources/{}".format(id)).json()
+        data = None
+        internal_list = self._get('internal/api/data_sources').json()
+        for item in internal_list:
+            if item['id'] == id:
+                data = item
+                break
+        return data
 
     def create_data_source(self, name, _type, options):
         """POST api/data_sources"""
@@ -116,14 +121,14 @@ class RedashFileClient(object):
         # Prepend next id to data source
         payload = {"id": _id, "name": name, "type": _type, "options": options}
 
-        return self._post(api, json=payload, list_data=True)
+        return self._post(api, json=payload)
 
     def dashboard(self, slug):
         """GET api/dashboards/{slug}"""
         return self._get("api/dashboards/{}".format(slug)).json()
 
     def create_query(self, query_json):
-        return self._post("api/queries", json=query_json, list_data=True)
+        return self._post("api/queries", json=query_json)
 
     def create_dashboard(self, name):
         return self._post("api/dashboards", json={"name": name}).json()
@@ -263,28 +268,18 @@ class RedashFileClient(object):
         response = None
         if method == 'GET':
             params = kwargs.get('params')
-            # TODO handle page and page_size if present
             data = self.data[path]
             response = Response(data)
         elif method == 'POST':
             data = kwargs.get('json')
-            list_data = kwargs.get('list_data')
-            if list_data:
-                if path not in self.data.keys():
-                    if isinstance(data, list):
-                        self.data[path] = data
-                    else:
-                        self.data[path] = [data]
-                else:
-                    self.data[path].append(data)
-            else:
-                self.data[path] = data
+            self.data[path] = data
             response = Response(data)
         else:
             raise Exception("DELETE not supported in file client")
         return response
 
     def _confirm_supported(self, path):
+        return True
         unsupported_list = ['api/groups', 'api/alerts']
         for item in unsupported_list:
             if item in path:

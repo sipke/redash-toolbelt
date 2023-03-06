@@ -78,7 +78,19 @@ class RedashFileClient(object):
 
     def disable_user(self, user_id):
         """POST api/users/<user_id>/disable"""
-        return self._post(f"api/users/{user_id}/disable").json()
+        users = self._get('internal/api/users').json()
+        user = None
+        for item in users:
+            if item['id'] == user_id:
+                item['is_disabled'] = True
+                user = item
+                break
+        users = self._get('api/users').json()
+        for item in users:
+            if item['id'] == user_id:
+                item['is_disabled'] = True
+                break
+        return user
 
     def dashboards(self, page=1, page_size=25, only_favorites=False):
         """GET api/dashboards"""

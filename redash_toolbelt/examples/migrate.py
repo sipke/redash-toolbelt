@@ -130,13 +130,19 @@ def init_file_client(orig_client, dest_client):
     store_api_to_file(orig_client, dest_client, "api/dashboards")
     store_api_to_file(orig_client, dest_client, "api/dashboards/favorites", internal=False)
     store_api_to_file(orig_client, dest_client, "api/destinations")
-    store_api_to_file(orig_client, dest_client, "api/alerts")
+    store_api_to_file(orig_client, dest_client, "api/destinations/types", internal=False)
+    alerts = store_api_to_file(orig_client, dest_client, "api/alerts")
     #store_api_to_file(orig_client, dest_client, "api/favorites")
+
 
     for group in groups:
         _id = group['id']
         store_api_to_file(orig_client, dest_client, f"api/groups/{_id}/members", internal=False)
         store_api_to_file(orig_client, dest_client, f"api/groups/{_id}/data_sources", internal=False)
+
+    for alert in alerts:
+        orig_id = alert['id']
+        store_api_to_file(orig_client, dest_client, f"api/alerts/{orig_id}/subscriptions", internal=False)
 
     print("File migration init complete")
 
@@ -806,7 +812,7 @@ def import_dashboards(orig_client, dest_client):
 
         print("   importing: {}".format(dashboard["slug"]))
 
-        d = orig_client.dashboard(dashboard["id"])
+        d = orig_client.get_dashboard(dashboard["id"])
 
         orig_user_id = d["user"]["id"]
 

@@ -61,7 +61,13 @@ class RedashFileClient(object):
 
     def get_query(self, query_id):
         """GET api/queries/<query_id>"""
-        return self._get(f"api/queries/{query_id}").json()
+        data = None
+        internal_list = self._get('internal/api/queries').json()
+        for item in internal_list:
+            if item['id'] == query_id:
+                data = item
+                break
+        return data
 
     def users(self, page=1, page_size=25, only_disabled=False):
         """GET api/users"""
@@ -83,10 +89,13 @@ class RedashFileClient(object):
 
     def get_dashboard(self, id):
         """GET api/dashboards/<id>"""
-
-        return self._get(
-            f"api/dashboards/{id}",
-        ).json()
+        data = None
+        internal_list = self._get('internal/api/dashboards').json()
+        for item in internal_list:
+            if item['id'] == id:
+                data = item
+                break
+        return data
 
     def get_data_sources(self):
         """GET api/data_sources"""
@@ -204,7 +213,13 @@ class RedashFileClient(object):
 
     def get_alert(self, alert_id):
         """GET api/alerts/<alert_id>"""
-        return self._get(f"api/alerts/{alert_id}").json()
+        data = None
+        internal_list = self._get('internal/api/alerts').json()
+        for item in internal_list:
+            if item['id'] == alert_id:
+                data = item
+                break
+        return data
 
     def create_alert(self, name, options, query_id):
         """POST api/alerts to create a new alert"""

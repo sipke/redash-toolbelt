@@ -25,6 +25,11 @@ class RedashFileClient(object):
 
     @classmethod
     def instance(cls, url):
+        """
+        Obtain singleton instance for given url path
+        :param url: path to file
+        :return: instance of class
+        """
         if url in cls._instances.keys():
             i = cls._instances[url]
         else:
@@ -288,8 +293,8 @@ class RedashFileClient(object):
 
     def _request(self, method, path, **kwargs):
         """
-        Blindly read or write to internal json data object using the API path as the key, allowing
-        for file based mimicking of the data.
+        Read or write to internal json data object using the API path as the key,
+        effectively mimicking file based data.
         """
         self._confirm_supported(path)
         response = None
@@ -340,7 +345,8 @@ class RedashFileClient(object):
     def _sub_data(self, data, params):
         """
         Filter the data for filterable parameters
-        api/users can filter on is_disabled with disabled parameter
+        api/users can filter on
+          - is_disabled with disabled parameter
         :param data: list of items
         :param params: parameters affecting filterable list
         :return: filtered list based on params filter items, or same data if no filterable item found

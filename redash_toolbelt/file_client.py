@@ -1,27 +1,43 @@
 import json
 import os
+import base64
+from cryptography.fernet import Fernet
 
 
 class RedashFileClient(object):
     """
     A file based client used to store redash information primarily as an intermediate migration step.
     """
-    def __init__(self, redash_url):
+    def __init__(self, redash_url, api_key):
         if 'http' in redash_url:
             raise Exception('File based client does not expect http in url')
         self.redash_url = redash_url
         self.data = {}
+        self.encoding = 'utf8'
+        self.encrypt = api_key is not None
+        self.key = api_key
+        if api_key:
+            key = api_key.ljust(32, '0')[:32].encode(self.encoding)
+            b64_key = base64.b64encode(key)
+            self.key = b64_key
         load = os.path.isfile(redash_url)
         if load:
             # load existing data if it exists
-            with open(redash_url, 'r') as file:
-                self.data = json.load(file)
-                if not self.data:
-                    self.data = {}
+            with open(redash_url, 'rb') as file:
+                file_data = file.read()
+                if self.encrypt:
+                    encrypt = Fernet(self.key)
+                    decrypted_data = encrypt.decrypt(file_data).decode(self.encoding)
+                    if not decrypted_data:
+                        self.data = {}
+                    else:
+                        self.data = json.loads(decrypted_data)
+                else:
+                    self.data = json.loads(file_data.decode(self.encoding))
         else:
-            # create new empty json file if possible
-            with open(redash_url, 'w') as file:
-                json.dump(dict(), file)
+            # create new empty file if possible
+            with open(redash_url, 'wb') as file:
+                file.write(''.encode(self.encoding))
 
     @classmethod
     def instance(cls, url):
@@ -358,8 +374,14 @@ class RedashFileClient(object):
         return new_data
 
     def close(self):
-        with open(self.redash_url, 'w') as file:
-            json.dump(self.data, file, indent=4)
+        with open(self.redash_url, 'wb') as file:
+            json_string = json.dumps(self.data, indent=4)
+            if self.encrypt:
+                encrypt = Fernet(self.key)
+                encrypted_data = encrypt.encrypt(json_string.encode(self.encoding))
+                file.write(encrypted_data)
+            else:
+                file.write(json_string.encode(self.encoding))
 
     _instances = dict()
 

@@ -1360,7 +1360,7 @@ def instantiate_client(url, api_key):
         instance = Redash(url, api_key)
     else:
         # File client needs to be a singleton
-        instance = RedashFileClient.instance(url)
+        instance = RedashFileClient.instance(url, api_key)
     return instance
 
 
